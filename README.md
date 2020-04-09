@@ -121,3 +121,40 @@ gcloud compute instances create reddit-app \
 ```
 
 Скрипт выполнится сразу после создания инстанса поэтому первые несколько минут (в моем случае 2-3) приложение будет не доступно
+
+
+### ДЗ №6
+***Задание c ключами***
+
+Добавление ключей возможно в ресурсе `google_compute_instance` в параметре `metadata`
+```
+metadata = {
+  ssh-keys = "appuser:<ssh key>\nappuser1:<ssh key 1>"
+}
+```
+или через ресурс `google_compute_project_metadata_item`, значение ключей я вынес в переменную
+
+main.tf
+________
+```
+resource "google_compute_project_metadata_item" "ssh-keys" {
+  key   = "ssh-keys"
+  value = join("\n", var.ssh_keys)
+}
+```
+variables.tf
+_____
+```
+variable "ssh_keys" {
+  description = "Public keys used for ssh access"
+  default = "<default key>"
+}
+```
+
+terraform.tfvars
+____
+```
+ssh_keys = [ "<first key>", "<second key>" ]
+```
+
+После выполнения `terraform apply` ключ пользователя appuser-web, удалился из метаданных
