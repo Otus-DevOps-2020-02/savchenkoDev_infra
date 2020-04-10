@@ -158,3 +158,94 @@ ssh_keys = [ "<first key>", "<second key>" ]
 ```
 
 После выполнения `terraform apply` ключ пользователя appuser-web, удалился из метаданных
+
+### ДЗ №7
+***Задание про `storage-bucket`***
+
+Чтобы настроить хранение в бэкэнде надо добавить модуль `storage-bucket` и выходную переменную в файле `main.tf`
+```
+module "storage-bucket" {
+  source  = "SweetOps/storage-bucket/google"
+  version = "0.3.1"
+  name = "state-remote-storage"
+  location = var.region
+}
+output storage-bucket_url {
+  value = module.storage-bucket.url
+}
+```
+потом в папках окружений создать файл `backend.tf`
+___
+```
+terraform {
+  backend "gcs" {
+    bucket = "state-remote-storage"
+    prefix = "<окружение>"
+  }
+}
+```
+потом надо в папках окружений запустить получение модудей `terraform get` и `terraform init`
+
+Это настроит стейт файла в удаленном бекенде
+
+***Задание  про `provisioners`***
+
+Так как инстансы разворачиваются из образов с уже установленным софтом надо только скачать код приложения и запустить puma-server
+В `modules/app/main.tf` добавить
+___
+```
+provisioner "file" {
+  source      = "${path.module}/puma.service"
+  destination = "/tmp/puma.service"
+}
+provisioner "remote-exec" {
+  script = "${path.module}/deploy.sh"
+}
+```
+и скопировать файлы в директорию
+
+**Чтобы инстанс приложение мог подключится к БД надо добавить сервису переменную окружения `DATABASE_URL`**
+1. Добавить выходную переменную в модуле db и объявить ее в модуле app
+`outputs.tf`
+
+```
+output "db_internal_ip" {
+  value = google_compute_instance.reddit-db.network_interface[0].network_ip
+}
+```
+`modules/app/variables.tf`
+```
+variable database_url {
+  description = "MongoDB URL"
+}
+```
+___
+2. Сохранить в файле с переменными окружения и скопировать его на инстанс
+`modules/app/main.tf`
+```
+provisioner "local-exec" {
+  command = "echo DATABASE_URL=$DATABASE_URL >> /tmp/app.env"
+  environment = {
+    DATABASE_URL = var.database_url
+  }
+}
+provisioner "file" {
+  source      = "/tmp/app.env"
+  destination = "/home/appuser/vars"
+}
+```
+___
+3. Добавить в `puma.service` указание откуда брать переменные окружения
+```
+[Unit]
+...
+
+[Service]
+...
+EnvironmentFile=path/to/environment/vars
+
+[Install]
+...
+```
+___
+Все остальное настроено
