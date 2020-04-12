@@ -1,0 +1,6 @@
+project_id       = "infra-XXX"
+user             = "appuser"
+public_key_path  = "path/to/public_key"
+private_key_path = "path/to/private_key"
+disk_image       = "reddit-base"
+ssh_keys         = [ "first key", "second key" ]
