@@ -249,3 +249,107 @@ EnvironmentFile=path/to/environment/vars
 ```
 ___
 Все остальное настроено
+
+
+### ДЗ №9
+
+***Задание со звездочкой***
+
+Для динамической инвентори выбрал  официальный плагин [gcp_compute](https://docs.ansible.com/ansible/latest/plugins/inventory/gcp_compute.html)
+
+Условия:
+
+- Должен быть создан сервисный аккаунт в GCP
+- Установлены компоненты для авторизации ansible в GCP для python
+
+```
+pip3 install requests
+pip3 install google-auth
+```
+
+Далее надо создать инвентори в формате описанном в документации
+```
+# inventory.compute.gcp.yml
+
+plugin: gcp_compute
+projects:
+  - infra-272611
+zones:
+  - europe-west1-b
+keyed_groups:
+    - key: name
+groups: # по каким критериям будем группировать
+  app: "'reddit-app' in name"
+  db: "'reddit-db' in name"
+hostnames:
+  - name
+compose: № как соотносить хост и адрес
+  ansible_host: networkInterfaces[0].accessConfigs[0].natIP
+filters: []
+auth_kind: serviceaccount # способ авторизации
+service_account_file: ~/service_key.json # ссылка на ключ от сервисного аккаунта
+```
+
+Потом надо в `ansible.cfg` подключить модуль `gcp_compute`
+```
+# ansible.cfg
+...
+[inventory]
+enable_plugins = gcp_compute
+```
+Проверяем работу инвентори
+```
+ansible-inventory -i inventory.compute.gcp.yml --graph
+```
+Дальше надо передать ip инстанса с БД в приложение, для этого в файле `db_config.j2` заменим значение переменной окружения
+```
+DATABASE_URL={{ hostvars[groups['db'][0]]['ansible_host'] }}
+```
+
+***Задание с Packer***
+
+Заменил скрипты на плэйбуки Ansible в образах Packer. Стоклнулся с двумя проблемами:
+- пришлось заменить `ssh_username` на `root`
+- передал доп параметр `force: yes` в плэйбуке для mongodb
+Вот сами плэйбуки:
+- packer_app.yml
+```
+---
+- name: Install Ruby && Bundler
+  hosts: all
+  become: true
+  tasks:
+  - name: Install Ruby and Bundler
+    apt: "name={{ item }} state=present"
+    with_items:
+      - ruby-full
+      - ruby-bundler
+      - build-essential
+```
+- packer_db.yml
+```
+---
+- name: Install MongoDB
+  hosts: all
+  become: true
+  tasks:
+  - name: Add key
+    apt_key:
+      id: EA312927
+      keyserver: keyserver.ubuntu.com
+  - name: Add repository
+    apt_repository:
+      repo: deb [ arch=amd64,arm64 ] http://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/3.2 multiverse
+      state: present
+  - name: Install mongodb
+    apt:
+      name: mongodb-org
+      state: present
+      force: yes
+  - name: Start mongodb
+    systemd:
+      name: mongod
+      enabled: yes
+```
+
+Далее пересоздал образы `packer`, создал  новые инстансы с помощью `terraform`, прокатил на нх `absible`. Все `success`.
