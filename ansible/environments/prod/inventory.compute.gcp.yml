@@ -1,0 +1,17 @@
+plugin: gcp_compute
+projects:
+  - infra-272611
+zones:
+  - europe-west1-b
+keyed_groups:
+    - key: name
+groups:
+  app: "'reddit-app-production' in name"
+  db: "'reddit-db-production' in name"
+hostnames:
+  - name
+compose:
+  ansible_host: networkInterfaces[0].accessConfigs[0].natIP
+filters: []
+auth_kind: serviceaccount
+service_account_file: ~/service_key.json
