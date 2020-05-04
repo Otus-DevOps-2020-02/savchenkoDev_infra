@@ -353,3 +353,52 @@ DATABASE_URL={{ hostvars[groups['db'][0]]['ansible_host'] }}
 ```
 
 Далее пересоздал образы `packer`, создал  новые инстансы с помощью `terraform`, прокатил на нх `absible`. Все `success`.
+
+
+### ДЗ №10
+
+***Самостоятельное задание***
+
+После добавления роли `jdauphant.nginx` необходимо открыть 80 порт. Для этого в файл `terraform/modules/app/main.tf` надо добавить новый ресурс GCP
+```
+resource "google_compute_firewall" "firewall_nginx" {
+  name    = "allow-nginx-default-${var.environment}"
+  network = "default"
+  allow {
+    protocol = "tcp"
+    ports    = ["80"]
+  }
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["reddit-app"]
+}
+```
+Добавил вызов новой роли в `./playbooks/app.yml`
+```
+- name: Configure App
+  hosts: app
+  become: true
+
+  roles:
+    - app
+    - jdauphant.nginx
+```
+
+После этого обновил инфраструктуру terrafrom и проверил работоспособность. Все success
+
+***Задание со звездочкой***
+
+Динамическую инвентори я сделал в прошлом ДЗ.
+
+Для начала убрал динамический адрес из файла `db_config.j2`
+```
+DATABASE_URL={{ db_host }}
+```
+Добавил в файлы `group_vars/app` переменную `db_host` со значением из динамической инвентори
+```
+db_host: "{{hostvars[groups['db'][0]]['ansible_host']}}"
+```
+Разделил инвентори для окружений. В `ansible.cfg` добавил инвентори по умолчанию для stage окружения
+
+В самих инвентори добавил окружение в правило группировки хостов.
+
+Пересоздал инфраструктуру terraform и прогнал плэйбук site.yml для stage окружения чтобы проверить работоспособность
